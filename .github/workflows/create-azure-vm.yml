@@ -1,9 +1,8 @@
 name: Create VM (Azure)
 on:
-  workflow_dispatch:
-    inputs:
-      vmSize: { required: true, type: string }
-      region: { required: true, type: string }
+ workflow_dispatch:        
+# push:                                             #  workflow_dispatch for manually triggered
+#   branches: [ master ]
 jobs:
   provision:
     runs-on: ubuntu-latest
