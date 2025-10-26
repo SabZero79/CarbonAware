@@ -1,0 +1,19 @@
+name: Create VM (GCP)
+on:
+  workflow_dispatch:
+    inputs:
+      machineType: { required: true, type: string }
+      zone: { required: true, type: string }
+jobs:
+  provision:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup gcloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIP }}
+          service_account: ${{ secrets.GCP_SA_EMAIL }}
+      - name: Create VM
+        run: |
+          gcloud compute instances create gha-vm --zone="${{ inputs.zone }}" --machine-type="${{ inputs.machineType }}" --image-family=debian-12 --image-project=debian-cloud
