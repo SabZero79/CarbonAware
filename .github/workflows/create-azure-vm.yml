@@ -2,7 +2,8 @@ name: Create VM (Azure)
 on:
  workflow_dispatch:
     inputs:
-      region: { required: true, type: string }
+      vmsize: { required: true, type: string }
+      region: { required: true, type: string }   
 # push:                                             #  workflow_dispatch for manually triggered
 #   branches: [ master ]
 jobs:
@@ -24,4 +25,4 @@ jobs:
       - name: Create VM
         run: |
           az group create -n azure_vm -l "${{ inputs.region }}"
-          az vm create -g azure_vm -n gha-vm --image Ubuntu2204 --size "Standard_B2s" --admin-username ghadmin --generate-ssh-keys
+          az vm create -g azure_vm -n gha-vm --image Ubuntu2204 --size "${{ inputs.region }}" --admin-username ghadmin --generate-ssh-keys
