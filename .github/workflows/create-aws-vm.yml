@@ -1,1 +1,20 @@
+name: Create VM (AWS)
+on:
+  workflow_dispatch:
+    inputs:
+      instanceType: { required: true, type: string }
+      region: { required: true, type: string }
+jobs:
+  provision:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure AWS creds
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ inputs.region }}
+      - name: Create EC2
+        run: |
+          aws ec2 run-instances --image-id ami-0c02fb55956c7d316 --instance-type "${{ inputs.instanceType }}" --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=gha-vm}]'
 
