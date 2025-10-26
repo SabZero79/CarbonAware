@@ -21,5 +21,5 @@ jobs:
       #  az group create -n rg-gha -l "${{ inputs.region }}"
       - name: Create VM
         run: |
-          az group create -n rg-gha -l "northeurope"
-          az vm create -g rg-gha -n gha-vm --image Ubuntu2204 --size "Standard_B2s" --admin-username ghadmin --generate-ssh-keys
+          az group create -n azure_vm -l "northeurope"
+          az vm create -g azure_vm -n gha-vm --image Ubuntu2204 --size "Standard_B2s" --admin-username ghadmin --generate-ssh-keys
