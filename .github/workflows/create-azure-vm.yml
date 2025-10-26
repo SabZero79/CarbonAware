@@ -18,7 +18,9 @@ jobs:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      #  az group create -n rg-gha -l "${{ inputs.region }}"
       - name: Create VM
         run: |
-          az group create -n rg-gha -l "${{ inputs.region }}"
-          az vm create -g rg-gha -n gha-vm --image Ubuntu2204 --size "${{ inputs.vmSize }}" --admin-username ghadmin --generate-ssh-keys
+          az group create -n rg-gha -l "northeurope"
+          az vm create -g rg-gha -n gha-vm --image Ubuntu2204 --size "Standard_B2s" --admin-username ghadmin --generate-ssh-keys
