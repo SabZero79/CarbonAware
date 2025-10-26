@@ -25,4 +25,4 @@ jobs:
       - name: Create VM
         run: |
           az group create -n azure_vm -l "${{ inputs.region }}"
-          az vm create -g azure_vm -n gha-vm --image Ubuntu2204 --size "${{ inputs.region }}" --admin-username ghadmin --generate-ssh-keys
+          az vm create -g azure_vm -n gha-vm --image Ubuntu2204 --size "${{ inputs.vmsize }}" --admin-username ghadmin --generate-ssh-keys
