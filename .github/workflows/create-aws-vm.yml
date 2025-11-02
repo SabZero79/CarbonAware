@@ -1,20 +1,79 @@
 name: Create VM (AWS)
+
 on:
   workflow_dispatch:
     inputs:
-      instanceType: { required: true, type: string }
-      region: { required: true, type: string }
+      region:
+        required: true
+        type: string
+        description: "AWS region (e.g., us-east-1, eu-west-1)"
+      instanceType:
+        required: true
+        type: string
+        description: "EC2 instance type (e.g., t3.micro)"
+
 jobs:
   provision:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
     steps:
       - uses: actions/checkout@v4
-      - name: Configure AWS creds
+
+      # OIDC auth into AWS (no long-lived keys)
+      - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-session-name: gha-ec2-provision
           aws-region: ${{ inputs.region }}
-      - name: Create EC2
-        run: |
-          aws ec2 run-instances --image-id ami-0c02fb55956c7d316 --instance-type "${{ inputs.instanceType }}" --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=gha-vm}]'
 
+      - name: Get latest Amazon Linux 2023 AMI (x86_64)
+        id: ami
+        run: |
+          AMI_ID=$(aws ssm get-parameters --names /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-6.1-x86_64 \
+                    --query 'Parameters[0].Value' --output text)
+          echo "ami_id=$AMI_ID" >> $GITHUB_OUTPUT
+
+      - name: Create security group (idempotent)
+        id: sg
+        run: |
+          SG_NAME="gha-sg"
+          VPC_ID=$(aws ec2 describe-vpcs --query 'Vpcs[0].VpcId' --output text)
+          SG_ID=$(aws ec2 describe-security-groups --filters "Name=group-name,Values=$SG_NAME" \
+                 --query 'SecurityGroups[0].GroupId' --output text || true)
+          if [ "$SG_ID" = "None" ] || [ -z "$SG_ID" ]; then
+            SG_ID=$(aws ec2 create-security-group --group-name "$SG_NAME" --description "GHA SG" --vpc-id "$VPC_ID" --query 'GroupId' --output text)
+            aws ec2 authorize-security-group-ingress --group-id "$SG_ID" --protocol tcp --port 22 --cidr 0.0.0.0/0
+          fi
+          echo "sg_id=$SG_ID" >> $GITHUB_OUTPUT
+
+      - name: Create key pair (ephemeral)
+        id: key
+        run: |
+          KEY_NAME="gha-key"
+          EXISTS=$(aws ec2 describe-key-pairs --key-names "$KEY_NAME" --query 'KeyPairs[0].KeyName' --output text || true)
+          if [ "$EXISTS" = "None" ] || [ -z "$EXISTS" ]; then
+            aws ec2 create-key-pair --key-name "$KEY_NAME" --query 'KeyMaterial' --output text > key.pem
+            chmod 600 key.pem
+          fi
+          echo "key_name=$KEY_NAME" >> $GITHUB_OUTPUT
+
+      - name: Launch EC2
+        id: ec2
+        run: |
+          INSTANCE_ID=$(aws ec2 run-instances \
+            --image-id "${{ steps.ami.outputs.ami_id }}" \
+            --instance-type "${{ inputs.instanceType }}" \
+            --security-group-ids "${{ steps.sg.outputs.sg_id }}" \
+            --key-name "${{ steps.key.outputs.key_name }}" \
+            --query 'Instances[0].InstanceId' \
+            --output text)
+          echo "instance_id=$INSTANCE_ID" >> $GITHUB_OUTPUT
+          aws ec2 create-tags --resources "$INSTANCE_ID" --tags Key=Name,Value=gha-ec2
+
+      - name: Output
+        run: |
+          echo "Instance: ${{ steps.ec2.outputs.instance_id }}"
