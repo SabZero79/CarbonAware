@@ -1,19 +1,53 @@
 name: Create VM (GCP)
+
 on:
   workflow_dispatch:
     inputs:
-      machineType: { required: true, type: string }
-      zone: { required: true, type: string }
+      region:
+        required: true
+        type: string
+        description: "GCP region (e.g., us-west1, europe-west1)"
+      machineType:
+        required: true
+        type: string
+        description: "GCE machine type (e.g., e2-micro)"
+
 jobs:
   provision:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write     # for OIDC
+      contents: read
     steps:
       - uses: actions/checkout@v4
-      - name: Setup gcloud
+
+      # Auth to GCP via OIDC (recommended)
+      - name: Google Auth (OIDC)
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: ${{ secrets.GCP_WIP }}
-          service_account: ${{ secrets.GCP_SA_EMAIL }}
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Enable Compute API (idempotent)
+        run: |
+          gcloud services enable compute.googleapis.com
+
+      - name: Derive zone from region (use "-b" by default)
+        id: z
+        run: |
+          echo "ZONE=${{ inputs.region }}-b" >> $GITHUB_OUTPUT
+
       - name: Create VM
         run: |
-          gcloud compute instances create gha-vm --zone="${{ inputs.zone }}" --machine-type="${{ inputs.machineType }}" --image-family=debian-12 --image-project=debian-cloud
+          gcloud compute instances create gha-vm \
+            --project "${{ secrets.GCP_PROJECT_ID }}" \
+            --zone "${{ steps.z.outputs.ZONE }}" \
+            --machine-type "${{ inputs.machineType }}" \
+            --image-family "ubuntu-2204-lts" \
+            --image-project "ubuntu-os-cloud" \
+            --metadata=ssh-keys="ghadmin:$(ssh-keygen -t rsa -b 4096 -C gha -N '' -f /tmp/gha >/dev/null 2>&1 && cat /tmp/gha.pub)" \
+            --tags=gha
